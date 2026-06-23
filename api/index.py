@@ -67,7 +67,7 @@ def tts_api():
 
 @app.route('/')
 def home():
-    return jsonify(
-        status="TTS API operational", 
-        info="Run main.py locally for desktop GUI, or send POST requests here to /api/tts"
-    )
+    # Automatically read and serve the index.html file located in the root directory
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    html_path = os.path.join(base_dir, 'index.html')
+    return send_file(html_path)
