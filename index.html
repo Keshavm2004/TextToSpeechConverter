@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Speech & Translator</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            resize: none;
+            font-size: 14px;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .checkbox-container input {
+            margin-right: 10px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: white;
+            font-size: 14px;
+        }
+        .status {
+            font-style: italic;
+            color: gray;
+            margin: 15px 0;
+            min-height: 20px;
+            font-size: 14px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-speak { background-color: #0070f3; color: white; }
+        .btn-speak:hover { background-color: #0051cb; }
+        .btn-download { background-color: #10b981; color: white; }
+        .btn-download:hover { background-color: #059669; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        audio { width: 100%; margin-top: 20px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Web TTS & Translator</h2>
+    
+    <label>Type your text here (Any language):</label>
+    <textarea id="textInput" placeholder="Enter text to convert..."></textarea>
+    
+    <div class="checkbox-container">
+        <input type="checkbox" id="translateCheck" checked>
+        <label style="margin:0; font-weight:normal;" for="translateCheck">Translate text before speaking</label>
+    </div>
+    
+    <label>Target Accent:</label>
+    <select id="accentSelect">
+        <option value="English (United States)">English (United States)</option>
+        <option value="English (United Kingdom)">English (United Kingdom)</option>
+        <option value="English (India)">English (India)</option>
+        <option value="English (Australia)">English (Australia)</option>
+        <option value="Spanish (Spain)">Spanish (Spain)</option>
+        <option value="Spanish (Mexico)">Spanish (Mexico)</option>
+        <option value="French (France)">French (France)</option>
+        <option value="German (Germany)">German (Germany)</option>
+        <option value="Hindi (India)">Hindi (India)</option>
+        <option value="Chinese (Mandarin)">Chinese (Mandarin)</option>
+    </select>
+    
+    <label>Voice Gender:</label>
+    <select id="genderSelect">
+        <option value="Female">Female</option>
+        <option value="Male">Male</option>
+    </select>
+    
+    <div class="status" id="statusLabel">Ready</div>
+    
+    <div class="btn-group">
+        <button class="btn-speak" id="speakBtn" onclick="processAudio('play')">Speak</button>
+        <button class="btn-download" id="downloadBtn" onclick="processAudio('download')">Download MP3</button>
+    </div>
+    
+    <audio id="audioPlayer" controls></audio>
+</div>
+
+<script>
+    async function processAudio(actionType) {
+        const text = document.getElementById('textInput').value.trim();
+        const translate = document.getElementById('translateCheck').checked;
+        const accent = document.getElementById('accentSelect').value;
+        const gender = document.getElementById('genderSelect').value;
+        
+        const statusLabel = document.getElementById('statusLabel');
+        const speakBtn = document.getElementById('speakBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const player = document.getElementById('audioPlayer');
+
+        if (!text) {
+            alert("Please enter some text first!");
+            return;
+        }
+
+        // Disable buttons and update status
+        speakBtn.disabled = true;
+        downloadBtn.disabled = true;
+        statusLabel.textContent = "Processing and generating audio... Please wait.";
+        statusLabel.style.color = "#0070f3";
+
+        try {
+            // Sends request directly to the Vercel Python Backend
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, translate, accent, gender })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Server error occurred");
+            }
+
+            // Convert raw response stream into an audio object URL
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+
+            statusLabel.textContent = "Audio generated successfully!";
+            statusLabel.style.color = "#10b981";
+
+            if (actionType === 'play') {
+                player.src = audioUrl;
+                player.style.display = "block";
+                player.play();
+            } else if (actionType === 'download') {
+                const a = document.createElement('a');
+                a.href = audioUrl;
+                a.download = "speech.mp3";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+        } catch (error) {
+            statusLabel.textContent = "Error: " + error.message;
+            statusLabel.style.color = "#ef4444";
+        } finally {
+            speakBtn.disabled = false;
+            downloadBtn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
