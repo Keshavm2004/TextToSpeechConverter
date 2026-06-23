@@ -6,9 +6,8 @@ from deep_translator import GoogleTranslator
 import edge_tts
 
 app = Flask(__name__)
-CORS(app)  # Allows web browsers to safely connect to your API
+CORS(app)
 
-# Mirrored directly from your desktop app configuration
 VOICE_OPTIONS = {
     "English (United States)": {"Male": "en-US-GuyNeural", "Female": "en-US-AvaNeural", "lang": "en"},
     "English (United Kingdom)": {"Male": "en-GB-RyanNeural", "Female": "en-GB-SoniaNeural", "lang": "en"},
@@ -55,19 +54,12 @@ def tts_api():
     else:
         processed_text = text
 
-    # 2. Audio Generation (Vercel environments only allow writing to /tmp)
+    # 2. Audio Generation
     temp_output_path = "/tmp/output_speech.mp3"
     try:
         asyncio.run(generate_voice_file(processed_text, voice_name, temp_output_path))
     except Exception as e:
         return jsonify(error=f"Audio generation error: {str(e)}"), 500
 
-    # 3. Stream audio file back to client
+    # 3. Stream audio file back
     return send_file(temp_output_path, mimetype="audio/mp3")
-
-@app.route('/')
-def home():
-    # Automatically read and serve the index.html file located in the root directory
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    html_path = os.path.join(base_dir, 'index.html')
-    return send_file(html_path)
