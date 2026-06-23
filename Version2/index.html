@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Neural Web TTS & Translator</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            resize: none;
+            font-size: 14px;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .checkbox-container input {
+            margin-right: 10px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            background: white;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .slider-container {
+            margin-top: 15px;
+        }
+        .slider-container input {
+            width: 100%;
+            margin-top: 5px;
+        }
+        .status {
+            font-style: italic;
+            color: gray;
+            margin: 15px 0;
+            min-height: 20px;
+            font-size: 14px;
+            word-wrap: break-word;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-speak { background-color: #0070f3; color: white; }
+        .btn-speak:hover { background-color: #0051cb; }
+        .btn-download { background-color: #10b981; color: white; }
+        .btn-download:hover { background-color: #059669; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        audio { width: 100%; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Web TTS & Translator</h2>
+    
+    <label>Type your text here (Any language):</label>
+    <textarea id="textInput" placeholder="Enter text to convert..."></textarea>
+    
+    <div class="checkbox-container">
+        <input type="checkbox" id="translateCheck" checked>
+        <label style="margin:0; font-weight:normal;" for="translateCheck">Translate text before speaking</label>
+    </div>
+    
+    <label>Target Accent:</label>
+    <select id="accentSelect">
+        <option value="">Loading live voice metrics from server...</option>
+    </select>
+    
+    <label>Voice Gender:</label>
+    <select id="genderSelect">
+        <option value="Female">Female</option>
+        <option value="Male">Male</option>
+    </select>
+
+    <label>Voice Actor Style / Choice:</label>
+    <select id="variantSelect">
+        </select>
+
+    <div class="slider-container">
+        <label>Speaker Pacing Rate (Speed Multiplier): <span id="speedValue">1.0x</span></label>
+        <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
+    </div>
+    
+    <div class="status" id="statusLabel">Initializing connection footprint...</div>
+    
+    <div class="btn-group">
+        <button class="btn-speak" id="speakBtn" onclick="processAudio('play')" disabled>Speak</button>
+        <button class="btn-download" id="downloadBtn" onclick="processAudio('download')" disabled>Download MP3</button>
+    </div>
+    
+    <audio id="audioPlayer" controls style="display:none;"></audio>
+</div>
+
+<script>
+    let VOICE_OPTIONS = {};
+
+    // Initial configuration handshake pipeline setup
+    window.addEventListener('DOMContentLoaded', async () => {
+        const accentSelect = document.getElementById('accentSelect');
+        const genderSelect = document.getElementById('genderSelect');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const statusLabel = document.getElementById('statusLabel');
+        const speakBtn = document.getElementById('speakBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        speedSlider.addEventListener('input', () => {
+            speedValue.textContent = speedSlider.value + "x";
+        });
+
+        try {
+            const response = await fetch('/api/voices');
+            if (!response.ok) throw new Error("Could not acquire system footprint indices.");
+            
+            VOICE_OPTIONS = await response.json();
+            
+            // Clean dynamic values injection
+            accentSelect.innerHTML = '';
+            Object.keys(VOICE_OPTIONS).forEach(accent => {
+                const opt = document.createElement('option');
+                opt.value = accent;
+                opt.textContent = accent;
+                accentSelect.appendChild(opt);
+            });
+
+            // Re-establish clean standardized localization layout point defaults
+            accentSelect.value = "English (United States)";
+            
+            accentSelect.addEventListener('change', updateVoiceVariants);
+            genderSelect.addEventListener('change', updateVoiceVariants);
+
+            updateVoiceVariants();
+            
+            statusLabel.textContent = "Ready";
+            statusLabel.style.color = "gray";
+            speakBtn.disabled = false;
+            downloadBtn.disabled = false;
+
+        } catch (error) {
+            statusLabel.textContent = "Configuration Handshake Failed: " + error.message;
+            statusLabel.style.color = "#ef4444";
+        }
+    });
+
+    function updateVoiceVariants() {
+        const selectedAccent = document.getElementById('accentSelect').value;
+        const genderSelect = document.getElementById('genderSelect');
+        let selectedGender = genderSelect.value;
+        const variantSelect = document.getElementById('variantSelect');
+
+        if (!VOICE_OPTIONS[selectedAccent]) return;
+
+        let availableVoices = VOICE_OPTIONS[selectedAccent][selectedGender] || [];
+
+        // PROTECTIVE WEB GUARDRAIL: Automatically swap components seamlessly if an accent variant misses a gender map
+        if (availableVoices.length === 0) {
+            const alternativeGender = selectedGender === "Female" ? "Male" : "Female";
+            availableVoices = VOICE_OPTIONS[selectedAccent][alternativeGender] || [];
+            if (availableVoices.length > 0) {
+                genderSelect.value = alternativeGender;
+                selectedGender = alternativeGender;
+            } else {
+                variantSelect.innerHTML = '<option value="0">No Voices Found</option>';
+                return;
+            }
+        }
+
+        variantSelect.innerHTML = '';
+        availableVoices.forEach((voice, index) => {
+            const voiceParts = voice.split('-');
+            const cleanerLabel = voiceParts[voiceParts.length - 1].replace('Neural', '');
+            const opt = document.createElement('option');
+            opt.value = index;
+            opt.textContent = `Voice ${index + 1} (${cleanerLabel})`;
+            variantSelect.appendChild(opt);
+        });
+    }
+
+    async function processAudio(actionType) {
+        const text = document.getElementById('textInput').value.trim();
+        const translate = document.getElementById('translateCheck').checked;
+        const accent = document.getElementById('accentSelect').value;
+        const gender = document.getElementById('genderSelect').value;
+        const variantIndex = parseInt(document.getElementById('variantSelect').value) || 0;
+        const speed = parseFloat(document.getElementById('speedSlider').value) || 1.0;
+        
+        const statusLabel = document.getElementById('statusLabel');
+        const speakBtn = document.getElementById('speakBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const player = document.getElementById('audioPlayer');
+
+        if (!text) {
+            alert("Please enter some text first!");
+            return;
+        }
+
+        speakBtn.disabled = true;
+        downloadBtn.disabled = true;
+        statusLabel.textContent = "Processing layout processing & generating voice data... Please wait.";
+        statusLabel.style.color = "#0070f3";
+
+        try {
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    text, 
+                    translate, 
+                    accent, 
+                    gender, 
+                    variant_index: variantIndex,
+                    speed: speed 
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Server error occurred");
+            }
+
+            const blob = await response.blob();
+            const audioUrl = URL.createObjectURL(blob);
+
+            statusLabel.textContent = "Audio generated successfully!";
+            statusLabel.style.color = "#10b981";
+
+            if (actionType === 'play') {
+                player.src = audioUrl;
+                player.style.display = "block";
+                player.play();
+            } else if (actionType === 'download') {
+                const a = document.createElement('a');
+                a.href = audioUrl;
+                a.download = "speech.mp3";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+        } catch (error) {
+            statusLabel.textContent = "Error: " + error.message;
+            statusLabel.style.color = "#ef4444";
+        } finally {
+            speakBtn.disabled = false;
+            downloadBtn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
