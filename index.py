@@ -1,5 +1,6 @@
 import os
 import asyncio
+import base64
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from deep_translator import GoogleTranslator
@@ -62,8 +63,17 @@ def tts_api():
     except Exception as e:
         return jsonify(error=f"Audio generation error: {str(e)}"), 500
 
-    # 3. Stream audio file back to client
-    return send_file(temp_output_path, mimetype="audio/mp3")
+    # 3. Read audio file, convert to Base64, and return along with the translated text
+    try:
+        with open(temp_output_path, "rb") as audio_file:
+            encoded_audio = base64.b64encode(audio_file.read()).decode('utf-8')
+        
+        return jsonify(
+            translated_text=processed_text,
+            audio=encoded_audio
+        )
+    except Exception as e:
+        return jsonify(error=f"File packaging error: {str(e)}"), 500
 
 @app.route('/')
 def home():
@@ -81,8 +91,10 @@ def home():
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
         }
         .container {
             background: white;
@@ -157,6 +169,14 @@ def home():
         .btn-download:hover { background-color: #059669; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         audio { width: 100%; margin-top: 20px; display: none; }
+        #translationContainer {
+            display: none;
+            margin-top: 15px;
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-left: 4px solid #0070f3;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -170,6 +190,11 @@ def home():
     <div class="checkbox-container">
         <input type="checkbox" id="translateCheck" checked>
         <label style="margin:0; font-weight:normal;" for="translateCheck">Translate text before speaking</label>
+    </div>
+
+    <div id="translationContainer">
+        <label>Translated Text Output:</label>
+        <textarea id="translatedOutput" readonly placeholder="Translated text will show here..."></textarea>
     </div>
     
     <label>Target Accent:</label>
@@ -213,6 +238,8 @@ def home():
         const speakBtn = document.getElementById('speakBtn');
         const downloadBtn = document.getElementById('downloadBtn');
         const player = document.getElementById('audioPlayer');
+        const translationContainer = document.getElementById('translationContainer');
+        const translatedOutput = document.getElementById('translatedOutput');
 
         if (!text) {
             alert("Please enter some text first!");
@@ -231,12 +258,28 @@ def home():
                 body: JSON.stringify({ text, translate, accent, gender })
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Server error occurred");
+                throw new Error(data.error || "Server error occurred");
             }
 
-            const blob = await response.blob();
+            // 1. Display the translated text if translation was enabled
+            if (translate) {
+                translatedOutput.value = data.translated_text;
+                translationContainer.style.display = "block";
+            } else {
+                translationContainer.style.display = "none";
+            }
+
+            // 2. Re-compile the base64 audio string back into a functional browser blob
+            const byteCharacters = atob(data.audio);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "audio/mp3" });
             const audioUrl = URL.createObjectURL(blob);
 
             statusLabel.textContent = "Audio generated successfully!";

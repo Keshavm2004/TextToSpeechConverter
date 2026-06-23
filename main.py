@@ -135,7 +135,7 @@ class TTSApplication:
             self.update_ui_text(self.preview_label, "Generating Neural Voice... Please wait.", "blue")
             # Creates an isolated, thread-safe asynchronous event loop block inside this worker thread
             asyncio.run(self._async_generate_audio(processed_text, voice_name, target_path))
-            self.update_ui_text(self.preview_label, "Audio ready!", "green")
+            self.update_ui_text(self.preview_label, processed_text, "green")
             return True
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("TTS Generation Error", f"Could not generate neural audio: {e}"))
