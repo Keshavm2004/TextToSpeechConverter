@@ -167,7 +167,5 @@ def tts_api():
 
 @app.route('/')
 def home():
-    return jsonify(
-        status="TTS API operational", 
-        info="Live query structure synced cleanly with UI layouts."
-    )
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_file(os.path.join(base_dir, 'index.html'))
