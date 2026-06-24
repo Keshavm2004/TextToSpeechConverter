@@ -4,6 +4,7 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from deep_translator import GoogleTranslator
 import edge_tts
+import urllib.parse
 
 app = Flask(__name__)
 CORS(app)
@@ -162,10 +163,18 @@ def tts_api():
     except Exception as e:
         return jsonify(error=f"Audio generation error: {str(e)}"), 500
 
-    # 3. Stream audio file back to client
-    return send_file(temp_output_path, mimetype="audio/mp3")
+    # 3. Stream audio file back to client WITH the translated text header
+    response = send_file(temp_output_path, mimetype="audio/mp3")
+    
+    # URL-encode text to handle non-ASCII characters cleanly in HTTP headers
+    response.headers["X-Translated-Text"] = urllib.parse.quote(processed_text)
+    # Expose the header so browser JavaScript can read it
+    response.headers["Access-Control-Expose-Headers"] = "X-Translated-Text"
+    
+    return response
 
 @app.route('/')
 def home():
+    # Looks for index.html in the same directory and serves it to the browser
     base_dir = os.path.dirname(os.path.abspath(__file__))
     return send_file(os.path.join(base_dir, 'index.html'))
