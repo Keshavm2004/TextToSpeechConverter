@@ -131,6 +131,11 @@
         <label>Speaker Pacing Rate (Speed Multiplier): <span id="speedValue">1.0x</span></label>
         <input type="range" id="speedSlider" min="0.5" max="2.0" step="0.1" value="1.0">
     </div>
+
+    <div id="translationBox" style="display: none; margin-top: 15px; padding: 12px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; text-align: left;">
+        <label style="margin-top: 0; color: #166534; font-size: 13px;">Translated Text Preview:</label>
+        <div id="translationPreview" style="font-size: 15px; color: #14532d; word-wrap: break-word; font-weight: 500; margin-top: 4px; line-height: 1.4;"></div>
+    </div>
     
     <div class="status" id="statusLabel">Initializing connection footprint...</div>
     
@@ -267,6 +272,19 @@
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || "Server error occurred");
+            }
+
+            // Extract and decode the translated text from headers
+            const translatedTextHeader = response.headers.get('X-Translated-Text');
+            const translationBox = document.getElementById('translationBox');
+            const translationPreview = document.getElementById('translationPreview');
+            
+            if (translatedTextHeader && translate) {
+                translationPreview.textContent = decodeURIComponent(translatedTextHeader);
+                translationBox.style.display = 'block';
+            } else {
+                // Hide the box if translation is turned off or unavailable
+                translationBox.style.display = 'none';
             }
 
             const blob = await response.blob();
